@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Hire AI - Candidate Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; }
+    header { background: #0E408A; color: white; padding: 15px; text-align: center; }
+    .dashboard { display: flex; }
+    .dashboard-nav { width: 200px; background: #fff; border-right: 1px solid #ccc; }
+    .dashboard-nav-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #eee; }
+    .dashboard-nav-item.active { background: #0E408A; color: #fff; }
+    .dashboard-content { flex: 1; padding: 20px; display: none; }
+    .dashboard-content.active { display: block; }
+    .card { background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .btn { background: #0E408A; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; }
+    .btn-outline { background: #fff; color: #0E408A; border: 1px solid #0E408A; }
+    textarea, input { width: 100%; padding: 8px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>SMART HIRE AI</h1>
+  <p>Streamlining hiring with fairness, feedback & well-being</p>
+</header>
+
+<div class="dashboard">
+  <div class="dashboard-nav">
+    <div class="dashboard-nav-item active" data-tab="resume">Resume Screening</div>
+    <div class="dashboard-nav-item" data-tab="interview">Interview Readiness</div>
+    <div class="dashboard-nav-item" data-tab="applications">Job Applications</div>
+    <div class="dashboard-nav-item" data-tab="mock">Mock Interviews</div>
+    <div class="dashboard-nav-item" data-tab="skills">Skill Tests</div>
+    <div class="dashboard-nav-item" data-tab="voice-resume">Voice to Resume</div>
+    <div class="dashboard-nav-item" data-tab="import-profile">Import Profile</div>
+  </div>
+
+  <div class="dashboard-main">
+    <div class="dashboard-content active" id="resume"><div class="card"><h3>Resume Screening</h3><p>AI Resume scoring demo...</p></div></div>
+    <div class="dashboard-content" id="interview"><div class="card"><h3>Interview Readiness</h3><p>Readiness score here...</p></div></div>
+    <div class="dashboard-content" id="applications"><div class="card"><h3>Job Applications</h3><p>Applied jobs list...</p></div></div>
+    <div class="dashboard-content" id="mock"><div class="card"><h3>Mock Interviews</h3><p>Feedback demo...</p></div></div>
+    <div class="dashboard-content" id="skills"><div class="card"><h3>Skill Tests</h3><p>Skill gap analysis...</p></div></div>
+
+    <!-- Voice to Resume -->
+    <div class="dashboard-content" id="voice-resume">
+      <div class="card">
+        <h3>Voice → Resume</h3>
+        <button class="btn" id="startVoiceBtn">🎤 Start Recording</button>
+        <div id="voiceStatus">Status: Idle</div>
+        <textarea id="voiceTranscript" rows="5" placeholder="Transcript..."></textarea>
+        <button class="btn" id="generateResumeBtn">Generate Resume</button>
+        <textarea id="generatedResume" rows="10" placeholder="Generated Resume"></textarea>
+      </div>
+    </div>
+
+    <!-- Import Profile -->
+    <div class="dashboard-content" id="import-profile">
+      <div class="card">
+        <h3>Import Profile</h3>
+        <input id="githubUsername" placeholder="GitHub username">
+        <button class="btn" id="fetchGithubBtn">Fetch GitHub</button>
+        <button class="btn-outline" id="fetchLinkedinBtn">Demo LinkedIn Parse</button>
+        <pre id="importResult"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Tab switching
+document.querySelectorAll('.dashboard-nav-item').forEach(item=>{
+  item.addEventListener('click', ()=>{
+    document.querySelectorAll('.dashboard-nav-item').forEach(i=>i.classList.remove('active'));
+    item.classList.add('active');
+    const tab = item.dataset.tab;
+    document.querySelectorAll('.dashboard-content').forEach(c=>c.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+  });
+});
+
+// Voice recognition
+let recognition, finalTranscript="";
+const startBtn=document.getElementById('startVoiceBtn');
+const transcriptArea=document.getElementById('voiceTranscript');
+const status=document.getElementById('voiceStatus');
+if(window.SpeechRecognition||window.webkitSpeechRecognition){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  recognition=new SR(); recognition.continuous=true; recognition.interimResults=true;
+  recognition.onresult=(e)=>{let interim=""; for(let i=e.resultIndex;i<e.results.length;++i){if(e.results[i].isFinal)finalTranscript+=e.results[i][0].transcript+"\n";else interim+=e.results[i][0].transcript;} transcriptArea.value=finalTranscript+interim;};
+  recognition.onstart=()=>status.textContent="Status: Listening...";
+  recognition.onend=()=>status.textContent="Status: Stopped";
+}
+startBtn.onclick=()=>{ if(startBtn.textContent.includes("Stop")){ recognition.stop(); startBtn.textContent="🎤 Start Recording"; } else { finalTranscript=""; transcriptArea.value=""; recognition.start(); startBtn.textContent="⏹ Stop"; }};
+
+// Call backend for resume parsing
+document.getElementById('generateResumeBtn').onclick=async()=>{
+  const text=transcriptArea.value.trim();
+  if(!text){alert("Speak first");return;}
+  const resp=await fetch("http://127.0.0.1:5000/api/voice-resume",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({transcript:text})});
+  const data=await resp.json();
+  document.getElementById('generatedResume').value=JSON.stringify(data.resume,null,2);
+};
+
+// GitHub fetch
+document.getElementById('fetchGithubBtn').onclick=async()=>{
+  const u=document.getElementById('githubUsername').value.trim();
+  const r=await fetch(`http://127.0.0.1:5000/api/github/${u}`);
+  const d=await r.json();
+  document.getElementById('importResult').textContent=JSON.stringify(d,null,2);
+};
+
+// LinkedIn demo
+document.getElementById('fetchLinkedinBtn').onclick=async()=>{
+  const r=await fetch("http://127.0.0.1:5000/api/linkedin-demo");
+  const d=await r.json();
+  document.getElementById('importResult').textContent=JSON.stringify(d,null,2);
+};
+</script>
+</body>
+</html>
